@@ -2,7 +2,7 @@ import threading
 
 class Client:
     
-    numero_compte = 0
+    numero_compte = 1
 
     def __init__(self):
         self.nom = ""
