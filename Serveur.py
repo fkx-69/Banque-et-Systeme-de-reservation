@@ -32,12 +32,12 @@ class Client:
 
 class Transaction(threading.Thread):
 
-    def __init__(self, client: Client, montant: float, type_transaction: str, client_destinataire: Client = None):
+    def __init__(self, client: Client, montant: float, type_transaction: str, numero_compte_destinataire: int = None):
         threading.Thread.__init__(self)
         self.client = client
         self.montant = montant
         self.type_transaction = type_transaction
-        self.client_destinataire = client_destinataire
+        self.client_destinataire = client_destinataire # doit etre le client du numero de compte numero_compte_dest
 
     def retrait(self):
         if self.client.solde >= self.montant:
