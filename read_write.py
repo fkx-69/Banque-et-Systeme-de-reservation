@@ -9,12 +9,12 @@ def ecrire_client(client):
     # Mettre à jour le client si son numéro de compte existe déjà
     for i, client_dictionnaire in enumerate(clients):
         if client_dictionnaire["numero_compte"] == client.numero_compte:
-            clients[i] = client.to_string_clients
+            clients[i] = client.to_string()
             client_existant = True
             break
 
     if not client_existant:
-        clients.append(client.to_string_clients())
+        clients.append(client.to_string())
 
     # Écriture des clients dans le fichier
     with open("client.txt", "w") as fichier:
@@ -28,14 +28,14 @@ def lire_clients():
         with open("client.txt", "r") as fichier:
             for ligne in fichier:
                 client = {
-                    "numero_compte": ligne.strip().split(",")[0],
+                    "numero_compte": int(ligne.strip().split(",")[0]),
                     "nom":  ligne.strip().split(",")[1],
                     "prenom": ligne.strip().split(",")[2],
                     "numero_telephone": ligne.strip().split(",")[3],
                     "type_compte": ligne.strip().split(",")[4],
                     "statut": ligne.strip().split(",")[5],
-                    "solde": ligne.strip().split(",")[6],
-                    "code_pin": ligne.strip().split(",")[7]
+                    "solde": float(ligne.strip().split(",")[6]),
+                    "code_pin": int(ligne.strip().split(",")[7])
                 }
                 clients.append(client)
     return clients
@@ -43,15 +43,22 @@ def lire_clients():
 # Fonction pour ajouter ou mettre à jour une transaction dans le fichier transaction.txt
 def ecrire_transaction(transaction):
     transactions = lire_transactions()
-    transaction_existe = False
+    transaction_existant = False
 
-    # On suppose que chaque transaction est unique, donc pas de mise à jour ici.
-    transactions.append(transaction)
+    # Mettre à jour la transaction si elle existe déjà (exemple : identifier par numéro de compte et type)
+    for i, transaction_dictionnaire in enumerate(transactions):
+        if transaction_dictionnaire["numero_compte"] == transaction.client.numero_compte and transaction_dictionnaire["type_transaction"] == transaction.type_transaction:
+            transactions[i] = transaction.to_string_transaction()
+            transaction_existant = True
+            break
+
+    if not transaction_existant:
+        transactions.append(transaction.to_string_transaction())
 
     # Écriture des transactions dans le fichier
     with open("transaction.txt", "w") as fichier:
-        for t in transactions:
-            fichier.write(t.to_string_transaction() + "\n")
+        for transaction_ in transactions:
+            fichier.write(f"{','.join([str(i) for i in transaction_.values()])}" + "\n")
 
 # Fonction pour lire toutes les transactions depuis le fichier transaction.txt
 def lire_transactions():
@@ -59,8 +66,12 @@ def lire_transactions():
     if os.path.exists("transaction.txt"):
         with open("transaction.txt", "r") as fichier:
             for ligne in fichier:
-                transaction = Transaction(None, 0, "")
-                transaction.from_string_transaction(ligne.strip())
+                transaction = {
+                    "numero_compte": int(ligne.strip().split(",")[0]),
+                    "montant": float(ligne.strip().split(",")[1]),
+                    "type_transaction": ligne.strip().split(",")[2],
+                    "numero_compte_destinataire": int(ligne.strip().split(",")[3]) if ligne.strip().split(",")[3] else None
+                }
                 transactions.append(transaction)
     return transactions
 
@@ -77,7 +88,7 @@ if __name__ == "__main__":
     clients = lire_clients()
     # for client in clients:
         # print(client)
-    """
+
     # Créer et écrire une transaction
     transaction = Transaction(client1, 200, "retrait")
     transaction.retrait()
@@ -86,6 +97,6 @@ if __name__ == "__main__":
     # Lire et afficher les transactions
     transactions = lire_transactions()
     for trans in transactions:
-        print(trans)"""
+        print(trans)
 
     #print(client1.to_string_clients())

@@ -18,7 +18,7 @@ class Client:
     def __str__(self):
         return f"{self.numero_compte} {self.nom} {self.prenom} {self.numero_telephone} {self.type_compte} {self.statut} {self.solde}"
     
-    def to_string_clients(self):
+    def to_string(self):
         # Transormer en une ligne de texte pour le ficiher client.txt
         return {
             "numero_compte": self.numero_compte,
@@ -31,12 +31,9 @@ class Client:
             "code_pin": self.code_pin
         }
 
-    def from_string_client(self, ligne):
+    def from_string(self, ligne):
         # Transformer une ligne de texte en objet Client
-        self.numero_compte, self.nom, self.prenom, self.numero_telephone, self.type_compte, self.statut, self.solde = ligne.split(',')
-        self.numero_compte = int(self.numero_compte)
-        self.solde = float(self.solde)
-        self.code_pin = int(self.code_pin)
+        self.numero_compte, self.nom, self.prenom, self.numero_telephone, self.type_compte, self.statut, self.solde, self.code_pin = [str(i) for i in ligne.values()]
 
 
 class Transaction(threading.Thread):
@@ -68,19 +65,20 @@ class Transaction(threading.Thread):
     def __str__(self) -> str:
         return f"{self.client.numero_compte} {self.montant} {self.type_transaction} {self.client_destinataire.numero_compte if self.client_destinataire else ''}"
 
-    def to_string_transaction(self):
-        return f"{self.client.numero_compte},{self.montant},{self.type_transaction},{self.client_destinataire.numero_compte if self.client_destinataire else ''}"
+    def to_string(self):
+        return {
+            "numero_compte": self.client.numero_compte,
+            "montant": self.montant,
+            "type_transaction": self.type_transaction,
+            "numero_compte_destinataire": self.client_destinataire.numero_compte if self.client_destinataire else ''
+        }
+    def from_string(self, ligne):
+        self.client.numero_compte, self.montant, self.type_transaction, numero_compte_destinataire = [str(i) for i in ligne.values()]
 
-    def from_string_transaction(self, ligne):
-        self.client.numero_compte, self.montant, self.type_transaction, numero_compte_destinataire = ligne.split(',')
-        self.client.numero_compte = int(self.client.numero_compte)
-        self.montant = float(self.montant)
-        self.client_destinataire = Client() # a revoir
-        self.client_destinataire.numero_compte = int(numero_compte_destinataire) # a revoir
+if __name__ == "__main__":
 
-"""
-client1 = Client("Doe", "John", "123456789", "courant", "actif", 1000, 1234)
-client2 = Client("Doe", "Jane", "987654321", "epargne", "actif", 5000, 4321)
-
-read_write.ecrire_client(client1)
-"""
+    client1 = Client("Doe", "John", "123456789", "courant", "actif", 1000, 1234)
+    client2 = Client("Doe", "Jane", "987654321", "epargne", "actif", 5000, 4321)
+    client3 = Client()
+    client3.from_string(client1.to_string())
+    print(client3)
