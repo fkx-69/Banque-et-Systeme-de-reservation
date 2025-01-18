@@ -1,5 +1,5 @@
 import threading
-import read_write
+import sauvegarder
 
 class Client:
     
@@ -44,7 +44,7 @@ class Client:
 
     def fermerture_compte(self):
         self.statut = "ferme"
-        read_write.ecrire_client(self)
+        sauvegarder.ecrire_client(self)
         print(f"Votre compte de numéro {self.numero_compte} a été fermé")
 
     
