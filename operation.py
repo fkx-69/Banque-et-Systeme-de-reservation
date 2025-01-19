@@ -1,23 +1,74 @@
 import threading
+import socket
 import os
-import sauvegarder
-from serveur import Client
+import random
+
+
+
+class Client:
+    
+    numero_compte = random.randint(100000, 999999)
+
+    def __init__(self, nom: str = "", prenom: str = "", numero_telephone: str = "", type_compte: str = "",
+            statut: str = "actif", solde: float = 0, code_pin: str = "0000"):
+        self.nom = nom
+        self.prenom = prenom
+        self.numero_telephone = numero_telephone
+        self.type_compte = type_compte
+        self.statut = statut
+        self.solde = solde
+        self.code_pin = code_pin
+        self.numero_compte = Client.numero_compte
+        Client.numero_compte += 1
+
+    def __str__(self):
+        return f"{self.numero_compte} {self.nom} {self.prenom} {self.numero_telephone} {self.type_compte} {self.statut} {self.solde}"
+    
+    def to_dict(self):
+        return {
+            "numero_compte": self.numero_compte,
+            "nom": self.nom,
+            "prenom": self.prenom,
+            "numero_telephone": self.numero_telephone,
+            "type_compte": self.type_compte,
+            "statut": self.statut,
+            "solde": self.solde,
+            "code_pin": self.code_pin
+        }
+
+    def from_dict(self, ligne):
+        self.numero_compte = ligne["numero_compte"]
+        self.nom = ligne["nom"]
+        self.prenom = ligne["prenom"]  
+        self.numero_telephone = ligne["numero_telephone"]
+        self.type_compte = ligne["type_compte"]
+        self.statut = ligne["statut"]
+        self.solde = ligne["solde"]
+        self.code_pin = ligne["code_pin"]
+
+    def fermerture_compte(self):
+        self.statut = "ferme"
+        Sauvegarde.ecrire_client(self)
+        print(f"Votre compte de numéro {self.numero_compte} a été fermé")
+
+
+
 
 
 class Sauvegarde: 
 
     # Fonction pour ajouter ou mettre à jour un client dans le fichier client.txt
     @staticmethod
-    def ecrire_client(client: Client, montant: float,  is_transaction = False) -> None:
+    def ecrire_client(client: Client, montant: float = 0,  is_transaction = False) -> None:
         """Cette fonction ajoute ou met à jour un client dans le fichier client.txt"""
-        clients = lire_clients()
+        clients = Sauvegarde.lire_clients()
         client_existant = False
 
         # Mettre à jour le client si son numéro de compte existe déjà
         for i, client_dictionnaire in enumerate(clients):
             if client_dictionnaire["numero_compte"] == client.numero_compte:
                 if not client_dictionnaire["statut"] == "actif" and is_retrait:
-                    return False
+                    return "Compte bloqué"
 
                 if is_transaction :
                     if float(client_destinataire["solde"]) + montant < 0:
@@ -35,7 +86,7 @@ class Sauvegarde:
             clients.append(client.to_dict())
 
         # Écriture des clients dans le fichier
-        with open("client.txt", "w") as fichier:
+        with open("client.txt", "w", encoding="UTF-8") as fichier:
             for client_ in clients:
                 fichier.write(f"{",".join([str(i) for i in client_.values()])}" + "\n")
 
@@ -65,7 +116,7 @@ class Sauvegarde:
     def ecrire_transaction(transaction):
         """Cette fonction ajoute une transaction dans le fichier transaction.txt"""
 
-        with open("transaction.txt", "a") as fichier:
+        with open("transaction.txt", "a", encoding="UTF-8") as fichier:
             fichier.write(f"{','.join([str(i) for i in transaction.to_dict().values()])}" + "\n")
 
     # Fonction pour lire toutes les transactions depuis le fichier transaction.txt
@@ -85,32 +136,31 @@ class Sauvegarde:
         return transactions
 
 
+
+
+
+
+
+
+
+
 class Transaction():
     
     @staticmethod
     def retrait(client, montant):
-        if self.client.solde >= self.montant:
-            self.client.solde -= self.montant
-            Sauvegarde.ecrire_transaction(self)
-            Sauvegarde.ecrire_client(self.client)
-            return True
-        return False    
+        """ Cette fonction permet de retirer un montant du solde d'un client. Elle permet de vérifier le solde juste avant d'essayer
+        de faire le retrait, au cas ou le client resoit un dépôt pendant qu'il est connecté. """
+        montant = -1*montant
+        if not Sauvegarde.ecrire_client(client,montant, True):
+            print("Solde insuffisant")
     
-    def depot(self):
-        self.client.solde += self.montant
-        Sauvegarde.ecrire_transaction(self)
-        Sauvegarde.ecrire_client(self.client)
-        return True
+    def depot(client, montant):
+        Sauvegarde.ecrire_client(client,montant, True)
+       
 
-    def virement(self):
-        if self.client.solde >= self.montant:
-            self.client.solde -= self.montant
-            self.client_destinataire.solde += self.montant
-            Sauvegarde.ecrire_transaction(self)
-            Sauvegarde.ecrire_client(self.client)
-            Sauvegarde.ecrire_client(self.client_destinataire)
-            return True
-        return False
+    def virement(client, client_destinataire, montant):
+        retrait(client, montant)
+        depot(client_destinataire, montant)
 
     def __str__(self) -> str:
         return f"{self.client.numero_compte} {self.montant} {self.type_transaction} {self.client_destinataire.numero_compte if self.client_destinataire else ''}"
@@ -124,6 +174,8 @@ class Transaction():
             "numero_compte_destinataire": self.client_destinataire.numero_compte if self.client_destinataire else ''
         }
 
+
+
 def numero_compte_to_client(numero_compte: int) -> Client:
     """Cette fonction prend un numéro de compte et retourne le client correspondant"""
     clients = lire_clients()
@@ -132,7 +184,8 @@ def numero_compte_to_client(numero_compte: int) -> Client:
             client_ = Client()
             client_.from_dict(client)
             return client_
-    return None
+
+
 
 def creer_compte():
     client = Client()
@@ -162,8 +215,8 @@ def creer_compte():
             print("Choix invalide")
             faire_depot = input("""Voulez-vous faire un dépôt initial maintenant?
             1. Oui
-            2. Non""")
-
+            2. Non \n""")
+ 
         if faire_depot == "1":
             montant = input("Entrez le montant à déposer ou 0 pour annuler: ")
             while not montant.isdigit():
@@ -179,7 +232,10 @@ def creer_compte():
             elif montant == 0:
                 print("Création de compte annulée")
                 return None
-    
+        else:
+            print("Création de compte annulée")
+            return None
+
     client.nom = input("Entrez votre nom: ")
     client.prenom = input("Entrez votre prénom: ")
     client.numero_telephone = "".join(input("Entrez votre numéro de téléphone sans indicatif (Vous pouvez séparer les chiffres par des espaces): ").split())
@@ -196,7 +252,9 @@ def creer_compte():
     
     Sauvegarde.ecrire_client(client)
     print("Compte créé avec succès !")
-    
+
+
+
 def changer_code_pin():
     numero_compte = input("Entrez votre numéro de compte: ")
     while not numero_compte.isdigit():
@@ -224,6 +282,37 @@ def changer_code_pin():
     client.code_pin = nouveau_code_pin
     Sauvegarde.ecrire_client(client)
     print("Code PIN modifié avec succès")
+
+
+def menu(client_socket):
+    # Envoi du menu au client
+    menu_text = """
+    1. Créer un compte
+    2. Se connecter
+    3. Changer le code PIN
+    4. Quitter
+    """
+    client_socket.send(menu_text.encode())
+
+    # Réception du choix du client
+    choix = client_socket.recv(1024).decode().strip()
+
+    # Vérification du choix
+    while choix not in ["1", "2", "3", "4"]:
+        client_socket.send("Choix invalide. Veuillez réessayer.\n".encode())
+        choix = client_socket.recv(1024).decode().strip()
+
+    # Exécution des actions en fonction du choix
+    if choix == "1":
+        creer_compte(client_socket)
+    elif choix == "2":
+        se_connecter(client_socket)
+    elif choix == "3":
+        changer_code_pin(client_socket)
+    elif choix == "4":
+        client_socket.send("Merci d'avoir utilisé nos services\n".encode())
+        return None
+
 
 
 if __name__ == "__main__":
