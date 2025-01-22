@@ -1,4 +1,5 @@
 import threading
+import fcntl
 import socket
 import os
 import time
@@ -56,39 +57,51 @@ class Client:
 #-----------------------------------------------------------------------------------------------------
 
 
+
 class Sauvegarde: 
 
     # Fonction pour ajouter ou mettre à jour un client dans le fichier client.txt
     @staticmethod
     def ecrire_client(client: Client, montant: float = 0) -> None:
         """Cette fonction ajoute ou met à jour un client dans le fichier client.txt"""
-        clients = Sauvegarde.lire_clients()
-        client_existant = False
-
-        # Mettre à jour le client si son numéro de compte existe déjà
-        for i, client_dictionnaire in enumerate(clients):
-            if client_dictionnaire["numero_compte"] == client.numero_compte:
-                if not client_dictionnaire["statut"] == "actif" and is_retrait:
-                    return "Compte non actif"
-
-                if montant != 0:
-                    if client_dictionnaire["solde"] + montant < 0:
-                        return "Solde insufisant"
-                    else:
-                        client.solde += montant
-                    
-
-                clients[i] = client.to_dict()
-                client_existant = True
-                break
-
-        if not client_existant:
-            clients.append(client.to_dict())
 
         # Écriture des clients dans le fichier
         with open("client.txt", "w", encoding="UTF-8") as fichier:
+            
+            fcntl.flock(fichier, fcntl.LOCK_EX)
+
+            clients = Sauvegarde.lire_clients()
+            client_existe = False
+
+            # Mettre à jour le client si son numéro de compte existe déjà
+            for i, client_dictionnaire in enumerate(clients):
+                if client_dictionnaire["numero_compte"] == client.numero_compte:
+                    if not client_dictionnaire["statut"] == "actif" and montant != 0:
+                        fcntl.flock(fichier, fcntl.LOCK_UN)
+                        return "Compte non actif"
+
+                    if montant != 0:
+                        if client_dictionnaire["solde"] + montant < 0:
+                            fcntl.flock(fichier, fcntl.LOCK_UN)
+                            return "Solde insufisant"
+                        else:
+                            client.solde += montant
+
+                    if client_dictionnaire["code_pin"] != client.code_pin:
+                        clients[i] = client.to_dict()
+                        
+
+                    client_existe = True
+                    break
+
+            if not client_existe:
+                clients.append(client.to_dict())
+
+
             for client_ in clients:
                 fichier.write(f"{",".join([str(i) for i in client_.values()])}" + "\n")
+
+            fcntl.flock(fichier, fcntl.LOCK_UN)
 
     # Fonction pour lire tous les clients depuis le fichier client.txt
     @staticmethod
@@ -137,9 +150,8 @@ class Sauvegarde:
 
 
 
-
-
 #-----------------------------------------------------------------------------------------------------
+
 
 
 class Transaction():
@@ -173,6 +185,7 @@ class Transaction():
         }
 
 
+
 #-----------------------------------------------------------------------------------------------------
 
 def numero_compte_to_client(numero_compte: int) -> Client:
@@ -199,7 +212,7 @@ def menu(client_socket):
     choix = client_socket.recv(1024).decode().strip()
 
     # Vérification du choix
-    while choix not in ["1", "2", "3", "4"]:
+    while not choix in ["1", "2", "3", "4"]:
         client_socket.send("Choix invalide. Veuillez réessayer.\n".encode())
         choix = client_socket.recv(1024).decode().strip()
 

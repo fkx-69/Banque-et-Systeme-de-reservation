@@ -9,10 +9,20 @@ def client_program():
     while True:
         # Réception du message
         message = client_socket.recv(1024).decode()
+
+        if message[-1] == "#":
+            print(message.replace("#", ""))
+            continue
+        
+
+          
         print(message)
 
         # Envoi du choix
         choix = input("")
+        if choix == '':
+            choix = '.'
+            
         client_socket.send(choix.encode("utf8"))
         
 

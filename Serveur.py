@@ -13,4 +13,5 @@ while True:
     print("Waiting for connection")
     conn, addr = socket.accept()
     thread = threading.Thread(target=menu, args=(conn,))
+
     thread.start()
