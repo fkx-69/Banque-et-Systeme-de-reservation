@@ -1,13 +1,14 @@
 import threading
 import socket
 import os
+import time
 import random
 
 
 
 class Client:
     
-    numero_compte = random.randint(100000, 999999)
+    numero_compte = random.randint(100_000, 999_999)
 
     def __init__(self, nom: str = "", prenom: str = "", numero_telephone: str = "", type_compte: str = "",
             statut: str = "actif", solde: float = 0, code_pin: str = "0000"):
@@ -52,14 +53,14 @@ class Client:
         print(f"Votre compte de numéro {self.numero_compte} a été fermé")
 
 
-
+#-----------------------------------------------------------------------------------------------------
 
 
 class Sauvegarde: 
 
     # Fonction pour ajouter ou mettre à jour un client dans le fichier client.txt
     @staticmethod
-    def ecrire_client(client: Client, montant: float = 0,  is_transaction = False) -> None:
+    def ecrire_client(client: Client, montant: float = 0) -> None:
         """Cette fonction ajoute ou met à jour un client dans le fichier client.txt"""
         clients = Sauvegarde.lire_clients()
         client_existant = False
@@ -68,12 +69,11 @@ class Sauvegarde:
         for i, client_dictionnaire in enumerate(clients):
             if client_dictionnaire["numero_compte"] == client.numero_compte:
                 if not client_dictionnaire["statut"] == "actif" and is_retrait:
-                    return "Compte bloqué"
+                    return "Compte non actif"
 
-                if is_transaction :
-                    if float(client_destinataire["solde"]) + montant < 0:
-                        print("Solde insufisant")
-                        return False
+                if montant != 0:
+                    if client_dictionnaire["solde"] + montant < 0:
+                        return "Solde insufisant"
                     else:
                         client.solde += montant
                     
@@ -139,9 +139,7 @@ class Sauvegarde:
 
 
 
-
-
-
+#-----------------------------------------------------------------------------------------------------
 
 
 class Transaction():
@@ -151,11 +149,11 @@ class Transaction():
         """ Cette fonction permet de retirer un montant du solde d'un client. Elle permet de vérifier le solde juste avant d'essayer
         de faire le retrait, au cas ou le client resoit un dépôt pendant qu'il est connecté. """
         montant = -1*montant
-        if not Sauvegarde.ecrire_client(client,montant, True):
+        if not Sauvegarde.ecrire_client(client,montant):
             print("Solde insuffisant")
     
     def depot(client, montant):
-        Sauvegarde.ecrire_client(client,montant, True)
+        Sauvegarde.ecrire_client(client,montant)
        
 
     def virement(client, client_destinataire, montant):
@@ -175,10 +173,11 @@ class Transaction():
         }
 
 
+#-----------------------------------------------------------------------------------------------------
 
 def numero_compte_to_client(numero_compte: int) -> Client:
     """Cette fonction prend un numéro de compte et retourne le client correspondant"""
-    clients = lire_clients()
+    clients = Sauvegarde.lire_clients()
     for client in clients:
         if client["numero_compte"] == numero_compte:
             client_ = Client()
@@ -186,109 +185,11 @@ def numero_compte_to_client(numero_compte: int) -> Client:
             return client_
 
 
-
-def creer_compte():
-    client = Client()
-    Choix_type_compte = input("""
-    1. Compte courant
-    2. Compte épargne
-    """)
-
-    while Choix_type_compte not in ["1", "2"]:
-        print("Choix invalide")
-        Choix_type_compte = input("""
-        1. Compte courant
-        2. Compte épargne
-        """)
-
-    if Choix_type_compte == "1":
-        client.type_compte = "courant"
-
-    elif Choix_type_compte == "2":
-        type_compte = "epargne"
-        faire_depot = input("""Pour créer un compte épargne vous devez d'abord faire un dépôt initial d'au moins 5000 FCFA.
-        Voulez-vous faire un dépôt initial maintenant?
-        1. Oui
-        2. Non""")
-
-        while faire_depot not in ["1", "2"]:
-            print("Choix invalide")
-            faire_depot = input("""Voulez-vous faire un dépôt initial maintenant?
-            1. Oui
-            2. Non \n""")
- 
-        if faire_depot == "1":
-            montant = input("Entrez le montant à déposer ou 0 pour annuler: ")
-            while not montant.isdigit():
-                print("Le montant doit être un nombre entier")
-                montant = input("Entrez le montant à déposer: ")
-            montant = float(montant)
-            if montant < 5000:
-                print("Le montant minimum pour un compte épargne est de 5000 FCFA")
-            elif montant >= 5000:
-                client.solde = montant
-                client.type_compte = "epargne"
-                print("Compte épargne créé avec succès")
-            elif montant == 0:
-                print("Création de compte annulée")
-                return None
-        else:
-            print("Création de compte annulée")
-            return None
-
-    client.nom = input("Entrez votre nom: ")
-    client.prenom = input("Entrez votre prénom: ")
-    client.numero_telephone = "".join(input("Entrez votre numéro de téléphone sans indicatif (Vous pouvez séparer les chiffres par des espaces): ").split())
-
-    while len(client.numero_telephone) != 8 or not client.numero_telephone.isdigit():
-        print("Le numéro de téléphone doit être composé de 8 chiffres")
-        client.numero_telephone = "".join(input("Entrez votre numéro de téléphone (Vous pouvez séparer les chiffres par des espaces): ").split())
-    
-    client.code_pin = input("Entrez votre code PIN à 4 chiffres: ")
-
-    while len(client.code_pin) != 4 or not client.code_pin.isdigit():
-        print("Le code PIN doit être composé de 4 chiffres")
-        client.code_pin = input("Entrez votre code PIN à 4 chiffres: ")
-    
-    Sauvegarde.ecrire_client(client)
-    print("Compte créé avec succès !")
-
-
-
-def changer_code_pin():
-    numero_compte = input("Entrez votre numéro de compte: ")
-    while not numero_compte.isdigit():
-        print("Le numéro de compte doit être un nombre entier")
-        numero_compte = input("Entrez votre numéro de compte: ")
-    numero_compte = int(numero_compte)
-    client = Sauvegarde.lire_client(numero_compte)
-    if not client:
-        print("Ce numéro de compte n'existe pas")
-        return None
-    code_pin = input("Entrez votre code PIN actuel: ")
-    while code_pin != client.code_pin:
-        print("Code PIN incorrect")
-        code_pin = input("Entrez votre code PIN actuel: ")
-    nouveau_code_pin = input("Entrez votre nouveau code PIN à 4 chiffres: ")
-    nouveau_code_pin_2 = input("Entrez votre nouveau code PIN à 4 chiffres une deuxièmme fois: ")
-    while len(nouveau_code_pin) != 4 or not nouveau_code_pin.isdigit() or nouveau_code_pin != nouveau_code_pin_2:
-        if nouveau_code_pin != nouveau_code_pin_2:
-            print("Les codes PIN ne correspondent pas")
-        else:
-            print("Le code PIN doit être composé de 4 chiffres")
-        nouveau_code_pin = input("Entrez votre nouveau code PIN à 4 chiffres: ")
-        nouveau_code_pin_2 = input("Entrez votre nouveau code PIN à 4 chiffres une deuxièmme fois: ")
-    
-    client.code_pin = nouveau_code_pin
-    Sauvegarde.ecrire_client(client)
-    print("Code PIN modifié avec succès")
-
-
 def menu(client_socket):
     # Envoi du menu au client
     menu_text = """
     1. Créer un compte
-    2. Se connecter
+    2. Faire une transaction
     3. Changer le code PIN
     4. Quitter
     """
@@ -306,12 +207,272 @@ def menu(client_socket):
     if choix == "1":
         creer_compte(client_socket)
     elif choix == "2":
-        se_connecter(client_socket)
+        menu_transaction(client_socket)
     elif choix == "3":
         changer_code_pin(client_socket)
     elif choix == "4":
         client_socket.send("Merci d'avoir utilisé nos services\n".encode())
         return None
+
+
+def menu_transaction(client_socket):
+    # Envoi du menu au client
+    menu_text = """
+    1. Faire un dépôt
+    2. Faire un retrait
+    3. Faire un virement
+    4. Retour
+    """
+    client_socket.send(menu_text.encode())
+
+    # Réception du choix du client
+    choix = client_socket.recv(1024).decode().strip()
+
+    # Vérification du choix
+    while choix not in ["1", "2", "3", "4"]:
+        client_socket.send("Choix invalide. Veuillez réessayer.\n".encode())
+        choix = client_socket.recv(1024).decode().strip()
+
+    # Exécution des actions en fonction du choix
+    if choix == "1":
+        faire_depot(client_socket)
+    elif choix == "2":
+        faire_retrait(client_socket)
+    elif choix == "3":
+        faire_virement(client_socket)
+    elif choix == "4":
+        menu(client_socket)
+
+def demander_numero_compte(client_socket, is_destinataire=False):
+    message = "Entrez le numéro de compte du destinataire: " if is_destinataire else "Entrez votre numéro de compte: "
+    client_socket.send(message.encode())
+    numero_compte = client_socket.recv(1024).decode().strip()
+    while not numero_compte.isdigit():
+        client_socket.send("Le numéro de compte doit être un nombre entier. Réessayez: ".encode())
+        numero_compte = client_socket.recv(1024).decode().strip()
+    return int(numero_compte)
+
+def demander_code_pin(client_socket):
+    client_socket.send("Entrez votre code PIN: ".encode())
+    code_pin = client_socket.recv(1024).decode().strip()
+    while len(code_pin) != 4 or not code_pin.isdigit():
+        client_socket.send("Le code PIN doit être composé de 4 chiffres. Réessayez: ".encode())
+        code_pin = client_socket.recv(1024).decode().strip()
+    return code_pin
+
+def demander_montant(client_socket):
+    client_socket.send("Entrez le montant: ".encode())
+    montant = client_socket.recv(1024).decode().strip()
+    while not montant.isdigit():
+        client_socket.send("Le montant doit être un nombre entier. Réessayez: ".encode())
+        montant = client_socket.recv(1024).decode().strip()
+    return float(montant)
+
+def faire_depot(client_socket):
+    
+    numero_compte = demander_numero_compte(client_socket, is_destinataire=True)
+
+    # Lire les informations du client
+    client = numero_compte_to_client(numero_compte)
+    if not client:
+        client_socket.send("Le numéro de compte du destinataire n'existe pas.\n".encode())
+        return None
+    
+    montant = demander_montant(client_socket)
+
+    # Faire le dépôt
+    Transaction.depot(client, montant)
+    client_socket.send("Dépôt effectué avec succès.\n".encode())
+    time.sleep(3)
+    menu_transaction(client_socket)
+
+
+def faire_retrait(client_socket):
+    try:
+        numero_compte = demander_numero_compte(client_socket)
+        client = numero_compte_to_client(numero_compte)
+        # Demander le code PIN
+        code_pin = demander_code_pin(client_socket)
+
+        if not client:
+            client_socket.send("Ce numéro de compte n'existe pas.\n".encode())
+            return None
+
+        # Vérifier le code PIN et le numéro de compte
+        while (code_pin != client.code_pin) or not client:
+            numero_compte = demander_numero_compte(client_socket)
+            client = numero_compte_to_client(numero_compte)
+            code_pin = demander_code_pin(client_socket)
+
+        # Demander le montant à retirer
+        montant = demander_montant(client_socket)
+
+        # Faire le retrait
+        Transaction.retrait(client, montant)
+        client_socket.send("Retrait effectué avec succès.\n".encode())
+        time.sleep(3)
+        menu_transaction(client_socket)
+    except Exception as e:
+        client_socket.send(f"Une erreur est survenue : {e}\n".encode())
+
+def faire_virement(client_socket):
+    try:
+        numero_compte = demander_numero_compte()
+        client = numero_compte_to_client(numero_compte)
+
+        if not client:
+            client_socket.send("Ce numéro de compte n'existe pas.\n".encode())
+            menu_transaction(client_socket)
+
+        numero_compte_destinataire = demander_numero_compte(client_socket, is_destinataire=True)
+        client_destinataire = numero_compte_to_client(numero_compte_destinataire)
+
+        if not client_destinataire:
+            client_socket.send("Le numéro de compte du destinataire n'existe pas.\n".encode())
+            menu_transaction(client_socket)
+        
+        code_pin = demander_code_pin()
+        # Vérifier le code PIN
+        while (code_pin != client.code_pin) or not client:
+            numero_compte = demander_numero_compte(client_socket)
+            client = numero_compte_to_client(numero_compte)
+            code_pin = demander_code_pin(client_socket)
+
+        # Demander le montant à transférer
+        montant = demander_montant(client_socket)
+        Transaction.virement(client, client_destinataire, montant)
+
+        client_socket.send("Virement effectué avec succès.\n".encode())
+        time.sleep(3)
+        menu_transaction(client_socket)
+
+    except Exception as e:
+        client_socket.send(f"Une erreur est survenue : {e}\n".encode())
+
+
+def creer_compte(client_socket):
+    # Création d'une instance de client
+    client = Client()
+    # Demander le type de compte
+    choix_menu = """
+    1. Compte courant
+    2. Compte épargne
+    """
+    client_socket.send(choix_menu.encode())
+    choix_type_compte = client_socket.recv(1024).decode().strip()
+
+    while choix_type_compte not in ["1", "2"]:
+        client_socket.send("Choix invalide. Réessayez.\n".encode())
+        choix_type_compte = client_socket.recv(1024).decode().strip()
+
+    if choix_type_compte == "1":
+        client.type_compte = "courant"
+
+    elif choix_type_compte == "2":
+        type_compte = "epargne"
+        demande_depot = """Pour créer un compte épargne, vous devez d'abord faire un dépôt initial d'au moins 5000 FCFA.
+        Voulez-vous faire un dépôt initial maintenant ?
+        1. Oui
+        2. Non
+        """
+        client_socket.send(demande_depot.encode())
+        faire_depot = client_socket.recv(1024).decode().strip()
+
+        while faire_depot not in ["1", "2"]:
+            client_socket.send("Choix invalide. Réessayez.\n".encode())
+            faire_depot = client_socket.recv(1024).decode().strip()
+
+        if faire_depot == "1":
+            client_socket.send("Entrez le montant à déposer ou 0 pour annuler: ".encode())
+            montant = client_socket.recv(1024).decode().strip()
+            while not montant.isdigit():
+                client_socket.send("Le montant doit être un nombre entier. Réessayez: ".encode())
+                montant = client_socket.recv(1024).decode().strip()
+            montant = float(montant)
+            if montant < 5000:
+                client_socket.send("Le montant minimum pour un compte épargne est de 5000 FCFA. Opération annulée.\n".encode())
+                return None
+            elif montant >= 5000:
+                client.solde = montant
+                client.type_compte = "epargne"
+                client_socket.send("Compte épargne créé avec succès.\n".encode())
+            elif montant == 0:
+                client_socket.send("Création de compte annulée.\n".encode())
+                return None
+        else:
+            client_socket.send("Création de compte annulée.\n".encode())
+            return None
+
+    # Demander les informations personnelles
+    client_socket.send("Entrez votre nom: ".encode())
+    client.nom = client_socket.recv(1024).decode().strip()
+
+    client_socket.send("Entrez votre prénom: ".encode())
+    client.prenom = client_socket.recv(1024).decode().strip()
+
+    client_socket.send("Entrez votre numéro de téléphone (8 chiffres espaces): ".encode())
+    client.numero_telephone = "".join(client_socket.recv(1024).decode().strip().split())
+
+    while len(client.numero_telephone) != 8 or not client.numero_telephone.isdigit():
+        client_socket.send("Le numéro de téléphone doit être composé de 8 chiffres. Réessayez: ".encode())
+        client.numero_telephone = client_socket.recv(1024).decode().strip()
+
+    client_socket.send("Entrez votre code PIN à 4 chiffres: ".encode())
+    client.code_pin = client_socket.recv(1024).decode().strip()
+
+    while len(client.code_pin) != 4 or not client.code_pin.isdigit():
+        client_socket.send("Le code PIN doit être composé de 4 chiffres. Réessayez: ".encode())
+        client.code_pin = client_socket.recv(1024).decode().strip()
+
+    # Sauvegarde des données du client
+    Sauvegarde.ecrire_client(client)
+    client_socket.send("Compte créé avec succès !\n".encode())
+    time.sleep(3)
+    menu(client_socket)
+    
+
+
+def changer_code_pin(client_socket):
+    try:
+        numero_compte = demander_numero_compte(client_socket)
+        
+
+        # Lire les informations du client
+        client = numero_compte_to_client(numero_compte)
+        if not client:
+            client_socket.send("Ce numéro de compte n'existe pas.\n".encode())
+            return None
+
+        # Demander le code PIN actuel
+        client_socket.send("Entrez votre code PIN actuel: ".encode())
+        code_pin = int(client_socket.recv(1024).decode().strip())
+        while code_pin != client.code_pin:
+            client_socket.send("Code PIN incorrect. Réessayez: ".encode())
+            code_pin = client_socket.recv(1024).decode().strip()
+
+        # Demander le nouveau code PIN
+        client_socket.send("Entrez votre nouveau code PIN à 4 chiffres: ".encode())
+        nouveau_code_pin = client_socket.recv(1024).decode().strip()
+        client_socket.send("Entrez votre nouveau code PIN à 4 chiffres une deuxième fois: ".encode())
+        nouveau_code_pin_2 = client_socket.recv(1024).decode().strip()
+
+        while len(nouveau_code_pin) != 4 or not nouveau_code_pin.isdigit() or nouveau_code_pin != nouveau_code_pin_2:
+            client_socket.send("""Le code PIN doit être composé de 4 chiffres. Réessayez.\n
+            Entrez votre nouveau code PIN à 4 chiffres:  """.encode())
+            nouveau_code_pin = client_socket.recv(1024).decode().strip()
+            client_socket.send("Entrez votre nouveau code PIN à 4 chiffres une deuxième fois: ".encode())
+            nouveau_code_pin_2 = client_socket.recv(1024).decode().strip()
+
+        # Mise à jour du code PIN
+        client.code_pin = nouveau_code_pin
+        Sauvegarde.ecrire_client(client)
+        client_socket.send("Code PIN modifié avec succès.\n".encode())
+    except Exception as e:
+        client_socket.send(f"Une erreur est survenue : {e}\n".encode())
+
+
+
+
 
 
 

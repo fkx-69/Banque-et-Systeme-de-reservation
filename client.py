@@ -7,21 +7,21 @@ def client_program():
 
     # Communication avec le serveur
     while True:
-        # Réception du menu
-        menu = client_socket.recv(1024).decode()
-        print(menu)
+        # Réception du message
+        message = client_socket.recv(1024).decode()
+        print(message)
 
         # Envoi du choix
-        choix = input("Entrez le numéro de l'option choisie: ")
-        client_socket.send(choix.encode())
+        choix = input("")
+        client_socket.send(choix.encode("utf8"))
+        
 
-        # Réception de la réponse du serveur
-        response = client_socket.recv(1024).decode()
-        print(response)
-
-        # Arrêt si l'utilisateur quitte
-        if choix == "4":
+        if choix == '0':
+            print("Bye !")
             break
+        
+        # Réception de la réponse du serveur
+        #response = client_socket.recv(1024).decode()
 
     # Fermeture du socket
     client_socket.close()
