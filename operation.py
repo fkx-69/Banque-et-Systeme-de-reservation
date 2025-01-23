@@ -5,7 +5,7 @@ import os
 import time
 import random
 
-
+#### rappel: ajouter une fonction pour verifier le status des compte avant opération
 
 class Client:
     
@@ -76,10 +76,7 @@ class Sauvegarde:
             # Mettre à jour le client si son numéro de compte existe déjà
             for i, client_dictionnaire in enumerate(clients):
                 if client_dictionnaire["numero_compte"] == client.numero_compte:
-                    if not client_dictionnaire["statut"] == "actif" and montant != 0:
-                        fcntl.flock(fichier, fcntl.LOCK_UN)
-                        return "Compte non actif"
-
+                    
                     if montant != 0:
                         if client_dictionnaire["solde"] + montant < 0:
                             fcntl.flock(fichier, fcntl.LOCK_UN)
@@ -130,7 +127,7 @@ class Sauvegarde:
         """Cette fonction ajoute une transaction dans le fichier transaction.txt"""
 
         with open("transaction.txt", "a", encoding="UTF-8") as fichier:
-            fichier.write(f"{','.join([str(i) for i in transaction.to_dict().values()])}" + "\n")
+            fichier.write(f"{','.join([str(i) for i in transaction().values()])}" + "\n")
 
     # Fonction pour lire toutes les transactions depuis le fichier transaction.txt
     @staticmethod
@@ -162,26 +159,28 @@ class Transaction():
         de faire le retrait, au cas ou le client resoit un dépôt pendant qu'il est connecté. """
         montant = -1*montant
         if not Sauvegarde.ecrire_client(client,montant):
-            print("Solde insuffisant")
+            print("Solde insuffisant") ## a changer pour un message d'erreur au client
+        Sauvegarde.ecrire_transaction(Transaction.to_dict("retrait", montant, client))
     
     def depot(client, montant):
         Sauvegarde.ecrire_client(client,montant)
+        Sauvegarde.ecrire_transaction(Transaction.to_dict("depot", montant, client_destinataire= client))
        
 
     def virement(client, client_destinataire, montant):
         retrait(client, montant)
         depot(client_destinataire, montant)
+        Sauvegarde.ecrire_transaction(Transaction.to_dict("virement", montant, client, client_destinataire))
 
-    def __str__(self) -> str:
-        return f"{self.client.numero_compte} {self.montant} {self.type_transaction} {self.client_destinataire.numero_compte if self.client_destinataire else ''}"
 
-    def to_dict(self):
+    @staticmethod
+    def to_dict(type_transaction: str, montant: float, client_source: Client = None, client_destinataire: Client = None) -> dict:
         """ Transormer en un dictionnaire pour le fichier transaction.txt """
         return {
-            "numero_compte": self.client.numero_compte,
-            "montant": self.montant,
-            "type_transaction": self.type_transaction,
-            "numero_compte_destinataire": self.client_destinataire.numero_compte if self.client_destinataire else ''
+            "type_transaction": type_transaction,
+            "montant": montant,
+            "numero_compte": client_source.numero_compte if client_source else '',
+            "numero_compte_destinataire": client_destinataire.numero_compte if client_destinataire.client_destinataire else ''
         }
 
 
@@ -204,7 +203,7 @@ def menu(client_socket):
     1. Créer un compte
     2. Faire une transaction
     3. Changer le code PIN
-    4. Quitter
+    0. Quitter
     """
     client_socket.send(menu_text.encode())
 
