@@ -334,7 +334,6 @@ def reserver_salle(client_socket):
         client_socket.sendall("Salle réservée avec succès.".encode())
     else:
         client_socket.sendall("Salle déjà réservée pour cette plage horaire.".encode())
-
     menu(client_socket)
 
 
@@ -377,7 +376,6 @@ def afficher_reservations(client_socket):
         client_socket.sendall("Aucune réservation trouvée.".encode())
 
     menu(client_socket)
-    
     
 
 if __name__ == "__main__":
