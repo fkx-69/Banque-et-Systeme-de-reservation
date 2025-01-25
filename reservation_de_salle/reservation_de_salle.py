@@ -114,22 +114,16 @@ class GestionUtilisateurs:
                 return self.utilisateurs[numero_telephone]["mot_de_passe"] == hash_mdp
             return False
 
-    def changer_mot_de_passe(self, numero_telephone, ancien_mdp, nouveau_mdp1, nouveau_mdp2):
+    def changer_mot_de_passe(self, numero_telephone, nouveau_mdp1, nouveau_mdp2):
         """Permet à un utilisateur de changer son mot de passe."""
         with self.lock:
-            if numero_telephone in self.utilisateurs:
-                hash_mdp = sha256(ancien_mdp.encode()).hexdigest()
-                if self.utilisateurs[numero_telephone]["mot_de_passe"] == hash_mdp:
-                    if nouveau_mdp1 == nouveau_mdp2:
-                        self.utilisateurs[numero_telephone]["mot_de_passe"] = sha256(nouveau_mdp1.encode()).hexdigest()
-                        self.sauvegarder_utilisateurs()
-                        return True, "Mot de passe changé avec succès."
-                    else:
-                        return False, "Les nouveaux mots de passe ne correspondent pas."
-                else:
-                    return False, "Ancien mot de passe incorrect."
+            if nouveau_mdp1 == nouveau_mdp2:
+                self.utilisateurs[numero_telephone]["mot_de_passe"] = sha256(nouveau_mdp1.encode()).hexdigest()
+                self.sauvegarder_utilisateurs()
+                return True, "Mot de passe changé avec succès."
             else:
-                return False, "Utilisateur introuvable."
+                return False, "Les nouveaux mots de passe ne correspondent pas."
+
 
 
 class ServeurReservation:
@@ -201,76 +195,6 @@ class ServeurReservation:
 
 
 
-class GestionProfesseurs:
-    def __init__(self, fichier="professeur.txt"):
-        self.fichier = fichier
-        self.lock = threading.Lock()
-        self.charger_professeurs()
-
-    def charger_professeurs(self):
-        """Charge les informations des professeurs depuis un fichier."""
-        self.professeurs = {}  # {numero_telephone: {"nom": ..., "prenom": ..., "mot_de_passe": ...}}
-        if not os.path.exists(self.fichier):
-            with open(self.fichier, "r") as f:
-                for ligne in f:
-                    numero, nom, prenom, mot_de_passe = ligne.strip().split(";")
-                    self.professeurs[numero] = {
-                        "nom": nom,
-                        "prenom": prenom,
-                        "mot_de_passe": mot_de_passe
-                    }
-        else:
-            with open(self.fichier, "w") as f:  # Crée le fichier s'il n'existe pas
-                pass
-
-    def sauvegarder_professeurs(self):
-        """Sauvegarde les informations des professeurs dans un fichier."""
-        with self.lock:
-            self.charger_professeurs()
-            with open(self.fichier, "w") as f:
-                for numero, infos in self.professeurs.items():
-                    ligne = f"{numero};{infos['nom']};{infos['prenom']};{infos['mot_de_passe']}\n"
-                    f.write(ligne)
-
-    def creer_compte(self, numero, nom, prenom, mot_de_passe):
-        """Crée un compte professeur."""
-        with self.lock:
-            if numero in self.professeurs:
-                return False
-            self.professeurs[numero] = {
-                "nom": nom,
-                "prenom": prenom,
-                "mot_de_passe": sha256(mot_de_passe.encode()).hexdigest()
-            }
-            self.sauvegarder_professeurs()
-            return True
-
-    def authentifier(self, numero, mot_de_passe):
-        """Vérifie les informations de connexion du professeur."""
-        with self.lock:
-            if numero in self.professeurs:
-                hash_mdp = sha256(mot_de_passe.encode()).hexdigest()
-                return self.professeurs[numero]["mot_de_passe"] == hash_mdp
-            return False
-
-    def changer_mot_de_passe(self, numero, ancien_mdp, nouveau_mdp1, nouveau_mdp2):
-        """Permet à un professeur de changer son mot de passe."""
-        with self.lock:
-            if numero in self.professeurs:
-                hash_mdp = sha256(ancien_mdp.encode()).hexdigest()
-                if self.professeurs[numero]["mot_de_passe"] == hash_mdp:
-                    if nouveau_mdp1 == nouveau_mdp2:
-                        self.professeurs[numero]["mot_de_passe"] = sha256(nouveau_mdp1.encode()).hexdigest()
-                        self.sauvegarder_professeurs()
-                        return True, "Mot de passe changé avec succès."
-                    else:
-                        return False, "Les nouveaux mots de passe ne correspondent pas."
-                else:
-                    return False, "Ancien mot de passe incorrect."
-            else:
-                return False, "Compte introuvable."
-
-
 
 # Script client pour interagir avec le serveur
 def menu(client_socket):
@@ -311,35 +235,76 @@ def menu(client_socket):
 
 
 def interface_changer_mot_de_passe(client_socket):
-    pass
+    """ Interface permettant à l'utilisateur de changer de mot de passe """
+    is_authentifie, numero_telephone = interface_authentifier()
 
+    if is_authentifie:
+        while True:
+
+            client_socket.sendall("Entrez le nouveau code pin: ".encode())
+            nouveau_mdp = client_socket.recv(1024).decode()
+            while (not nouveau_mdp.isdigit()) and  len(nouveau_mdp) != 4:
+                client_socket.sendall("Code pin invalide. Réessayez: ")
+                nouveau_mdp = client_socket.recv(1024).decode()
+            
+            client_socket.sendall("Entrez le nouveau code pin une deuxème fois: ".encode())
+            nouveau_mdp2 = client_socket.recv(1024).decode()
+            while (not nouveau_mdp2.isdigit()) and  len(nouveau_mdp2) != 4:
+                client_socket.sendall("Code pin invalide. Réessayez: ")
+                nouveau_mdp2 = client_socket.recv(1024).decode()
+       
+            is_changed, message = GestionUtilisateurs.changer_mot_de_passe(numero_telephone, nouveau_mdp, nouveau_mdp2)
+            client_socket.sendall(f"{message}#".encode())
+            if is_changed:
+                break
+    else:
+        client_socket.sendall("Numero de telephone ou code pin incorecte.#".encode())
+    
+    time.sleep(3)
+    menu(client_socket)
+
+        
+
+    
 
 def creer_compte(client_socket):
-    client_socket.sendall("Entrez votre nom, prenom, numero de téléphone séparer par des virgule ',': ".encode())
-    nom_utilisateur = client_socket.recv(1024).decode()
-    
+
+    while True:
+        client_socket.sendall("Entrez votre nom, prenom, numero de téléphone séparer par des virgule ',' sans espaces: ".encode())
+        informations = client_socket.recv(1024).decode()
+        nom, prenom, numero_telephone = [info.strip() for i in informations.split(",")]
+        if (f"{nom}{prenom}".isalpha()) and (numero.isdigit and len(numero_telephone == 4) ):
+            break
+        else:
+            client_socket.sendall(("Une ou plusieurs informations n'ont pas le bon format.#".encode()))
+        
     client_socket.sendall("Entrez votre code pin de 4 chiffres: ".encode())
     mot_de_passe = client_socket.recv(1024).decode()
     while not mot_de_passe.isdigit() or len(mot_de_passe) != 4:
         client_socket.sendall("Mot de passe invalide. Veuillez choisir un mot de passe composé de 4 chiffres uniquement :".encode())
         mot_de_passe = client_socket.recv(1024).decode()
 
-    nom, prenom, numero = nom_utilisateur.split(",")
+    gestionUtilisateurs = GestionUtilisateurs()
+    if numero_telephone in gestionUtilisateurs.utilisateurs.keys():
+        client_socket.sendall("Le numéro de téléphone est déjà utiliser pour un autre compte. #")
+    else:
+        enregistrer = GestionProfesseurs()
+        enregistrer.creer_compte(numero_telephone, nom, prenom, mot_de_passe)
+        client_socket.sendall("Compte créé avec succès. #".encode())
+    
+    time.sleep(3)
+    menu(client_socket)
 
-    enregistrer = GestionProfesseurs()
 
-    enregistrer.creer_compte(numero.strip(), nom.strip(), prenom.strip(), mot_de_passe)
-
-    client_socket.sendall("Compte créé avec succès. #".encode())
-
-    menu(client_socket)    
-
-    print(reponse)
-
-
-def authentifier(client_socket):
+def interface_authentifier(client_socket):
     client_socket.sendall("Entrez votre numéro de téléphone: ".encode())
-    numero = client_socket.recv(1024).decode()
+    numero_telephone = client_socket.recv(1024).decode()
+    while not numero_telephone.isdigit() and len( "".join(numero_telephone.strip().split())) != 8:
+        client_socket.sendall("Numéro de téléphone invalide. Réessayez ou tapez (1) pour revenire au menu principal: ".encode())
+        numero_telephone = client_socket.recv(1024).decode()
+        if numero_telephone == "1":
+            menu()
+
 
     client_socket.sendall("Entrez votre code pin de 4 chiffres: ".encode())
     mot_de_passe = client_socket.recv(1024).decode()
@@ -349,13 +314,7 @@ def authentifier(client_socket):
 
     authentification = GestionProfesseurs()
 
-    reponse = authentification.authentifier(numero, mot_de_passe)
-
-    if reponse:
-        client_socket.sendall("Authentification réussie.".encode())
-        menu(client_socket)
-    else:
-        client_socket.sendall("Authentification échouée. Vérifiez vos informations de connexion.".encode())
+    return authentification.authentifier(numero_telephone, mot_de_passe), numero_telephone
 
 
 def reserver_salle(client_socket):
@@ -368,8 +327,7 @@ def reserver_salle(client_socket):
     client_socket.sendall("Entrez la date et l'heure de fin (format: YYYY-MM-DD HH:MM): ".encode())
     fin = client_socket.recv(1024).decode()
 
-    reservation = ServeurReservation()
-
+    reservation = SalleReservation()
     reponse = reservation.reserver_salle(nom_salle, debut, fin)
 
     if reponse:
@@ -390,7 +348,7 @@ def annuler_reservation(client_socket):
     client_socket.sendall("Entrez la date et l'heure de fin (format: YYYY-MM-DD HH:MM): ".encode())
     fin = client_socket.recv(1024).decode()
 
-    annulation = ServeurReservation()
+    annulation = SalleReservation()
 
     reponse = annulation.annuler_reservation(nom_salle, debut, fin)
 
@@ -427,3 +385,4 @@ if __name__ == "__main__":
 
     serveur = ServeurReservation()
     serveur.demarrer()
+
