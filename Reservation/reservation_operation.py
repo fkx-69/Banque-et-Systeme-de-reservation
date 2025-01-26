@@ -5,8 +5,10 @@ import json
 from datetime import datetime
 from hashlib import sha256
 import os
+from collections import OrderedDict ##
 
 class SalleReservation:
+    lock = threading.Lock()
     def __init__(self):
         self.reservations = {}  # Dictionnaire sous la forme {"nom_salle": [(debut, fin, professeur)]}
         self.lock = threading.Lock()
@@ -39,20 +41,22 @@ class SalleReservation:
         return True
 
 
+        
+
     def reserver_salle(self, nom_salle, debut, fin, professeur):
         """Réserve une salle si elle est disponible pour la plage horaire spécifiée."""
-    with self.lock:
-        debut_dt = datetime.strptime(debut, "%Y-%m-%d %H:%M")
-        fin_dt = datetime.strptime(fin, "%Y-%m-%d %H:%M")
+        with self.lock:
+            debut_dt = datetime.strptime(debut, "%Y-%m-%d %H:%M")
+            fin_dt = datetime.strptime(fin, "%Y-%m-%d %H:%M")
 
-        if self.verifier_disponibilite(nom_salle, debut, fin):
-            if nom_salle not in self.reservations:
-                self.reservations[nom_salle] = []
-            self.reservations[nom_salle].append((debut, fin, professeur.numero_telephone[0]))
-            self.enregistrer_reservation(nom_salle, debut_dt, fin_dt, professeur.numero_telephone[0])
-            return True
-        else:
-            return False
+            if self.verifier_disponibilite(nom_salle, debut, fin):
+                if nom_salle not in self.reservations:
+                    return False
+                self.reservations[nom_salle].append((debut, fin, professeur.numero_telephone[0]))
+                self.enregistrer_reservation(nom_salle, debut_dt, fin_dt, professeur.numero_telephone[0])
+                return True
+            else:
+                return False
 
 
     def enregistrer_reservation(self, nom_salle, debut, fin, professeur_numero):
@@ -87,7 +91,7 @@ class GestionUtilisateurs:
 
     def sauvegarder_utilisateurs(self):
         """Sauvegarde les informations des utilisateurs dans un fichier."""
-        with lock:
+        with GestionUtilisateurs.lock:
             with open(self.fichier, "w") as f:
                 for numero_telephone, infos in self.utilisateurs.items():
                     ligne = f"{numero_telephone};{infos['nom']};{infos['prenom']};{infos['mot_de_passe']}\n"
@@ -203,15 +207,15 @@ def menu(client_socket):
     1. Créer un compte
     2. Réserver une salle
     3. Annuler une réservation
-    4. afficher la table des réservations
-    5. changer de mot de passe
+    4. Afficher la table des réservations
+    5. Changer de mot de passe
     6. Quitter
     """.encode())
 
     choix = client_socket.recv(1024).decode()
 
-    while choix not in ["1", "2", "3", "4", "5", "6", "7"]:
-        client_socket.sendall("Choix invalide. Veuillez réessayer :", encode())
+    while choix not in ["1", "2", "3", "4", "5", "6"]:
+        client_socket.sendall("Choix invalide. Veuillez réessayer :".encode())
         choix = client_socket.recv(1024).decode()
 
     if choix == "1":
@@ -230,7 +234,7 @@ def menu(client_socket):
         interface_changer_mot_de_passe(client_socket)
 
     if choix == "6":
-        client_socket.sendall("Au revoir !".encode())
+        client_socket.sendall("Au revoir !#".encode())
         client_socket.close()
 
 
@@ -263,17 +267,16 @@ def interface_changer_mot_de_passe(client_socket):
     time.sleep(3)
     menu(client_socket)
 
-        
-
-    
+            
 
 def creer_compte(client_socket):
 
     while True:
         client_socket.sendall("Entrez votre nom, prenom, numero de téléphone séparer par des virgule ',' sans espaces: ".encode())
         informations = client_socket.recv(1024).decode()
-        nom, prenom, numero_telephone = [info.strip() for i in informations.split(",")]
-        if (f"{nom}{prenom}".isalpha()) and (numero.isdigit and len(numero_telephone == 4) ):
+        nom, prenom, numero_telephone = [info.strip() for info in informations.split(",")]
+        client_socket.sendall(f"{nom}, {prenom}, {numero_telephone}#".encode())
+        if ( nom.isalpha() and prenom.isalpha()) and (numero_telephone.isdigit() and len(numero_telephone) == 8 ):
             break
         else:
             client_socket.sendall(("Une ou plusieurs informations n'ont pas le bon format.#".encode()))
@@ -286,14 +289,15 @@ def creer_compte(client_socket):
 
     gestionUtilisateurs = GestionUtilisateurs()
     if numero_telephone in gestionUtilisateurs.utilisateurs.keys():
-        client_socket.sendall("Le numéro de téléphone est déjà utiliser pour un autre compte. #")
+        client_socket.sendall("Le numéro de téléphone est déjà utiliser pour un autre compte. #".encode())
     else:
-        enregistrer = GestionProfesseurs()
+        enregistrer = GestionUtilisateurs()
         enregistrer.creer_compte(numero_telephone, nom, prenom, mot_de_passe)
         client_socket.sendall("Compte créé avec succès. #".encode())
     
     time.sleep(3)
     menu(client_socket)
+
 
 
 def interface_authentifier(client_socket):
@@ -317,6 +321,7 @@ def interface_authentifier(client_socket):
     return authentification.authentifier(numero_telephone, mot_de_passe), numero_telephone
 
 
+
 def reserver_salle(client_socket):
     client_socket.sendall("Entrez le nom de la salle à réserver: ".encode())
     nom_salle = client_socket.recv(1024).decode()
@@ -335,6 +340,7 @@ def reserver_salle(client_socket):
     else:
         client_socket.sendall("Salle déjà réservée pour cette plage horaire.".encode())
     menu(client_socket)
+
 
 
 def annuler_reservation(client_socket):
@@ -359,13 +365,12 @@ def annuler_reservation(client_socket):
     menu(client_socket)
 
 
+
 def afficher_reservations(client_socket):
     """Affiche la table des réservations qui ne sont pas encore arrivé."""
     client_socket.sendall("Entrez le nom de la salle à afficher: ".encode())
     nom_salle = client_socket.recv(1024).decode()
-
-    affichage = ServeurReservation()
-
+    affichage = SalleReservation()
     reservations = affichage.afficher_reservations(nom_salle)
 
     if reservations:
@@ -376,11 +381,52 @@ def afficher_reservations(client_socket):
         client_socket.sendall("Aucune réservation trouvée.".encode())
 
     menu(client_socket)
-    
+
+
+
+def afficher_reservations_salle(client_socket, nom_salle):
+    """Affiche la table des réservations pour une salle à partir de maintenant."""
+
+    salle_reservation = SalleReservation()
+
+    reservations = salle_reservation.reservations
+    with self.lock:
+        if nom_salle not in reservations:
+            print(f"Aucune réservation pour la salle {nom_salle}.")
+            return
+        
+        maintenant = datetime.now()
+        reservations_futures = [
+            (debut, fin, professeur)
+            for debut, fin, professeur in reservations[nom_salle]
+            if fin > maintenant
+        ]
+
+        if not reservations_futures:
+            print(f"Aucune réservation future pour la salle {nom_salle}.")
+            return
+        
+        reservations = sorted(reservations_futures,key=lambda x: x[1])
+
+        separateur = "-"*60 +"#"
+        
+        client_socket.sendall(f"Table des réservations pour la salle {nom_salle} (à partir de {maintenant}):#".encode())
+        client_socket.sendall(f"{'Début':<20} {'Fin':<20} {'Professeur':<20}#".encode())
+        client_socket.sendall(separateur.encode())
+        for debut, fin, professeur in sorted(reservations_futures, key=lambda x: x[0]):
+            client_socket.sendall(f"{debut:<20} {fin:<20} {professeur:<20}".encode())
+
+    choix = ""
+    while choix != "1":
+        client_socket.sendall("Taper 1 pour retourner au menu".encode())
+        choix = client_socket.recv(1024).decode()
+
+    menu(client_socket)
+        
+
 
 if __name__ == "__main__":
     client()
 
     serveur = ServeurReservation()
     serveur.demarrer()
-

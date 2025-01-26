@@ -1,5 +1,4 @@
 import threading
-import fcntl
 import socket
 import os
 import time
@@ -68,8 +67,6 @@ class Sauvegarde:
         # Écriture des clients dans le fichier
         with open("client.txt", "w", encoding="UTF-8") as fichier:
             
-            fcntl.flock(fichier, fcntl.LOCK_EX)
-
             clients = Sauvegarde.lire_clients()
             client_existe = False
 
@@ -79,7 +76,6 @@ class Sauvegarde:
                     
                     if montant != 0:
                         if client_dictionnaire["solde"] + montant < 0:
-                            fcntl.flock(fichier, fcntl.LOCK_UN)
                             return "Solde insufisant"
                         else:
                             client.solde += montant
@@ -98,7 +94,6 @@ class Sauvegarde:
             for client_ in clients:
                 fichier.write(f"{",".join([str(i) for i in client_.values()])}" + "\n")
 
-            fcntl.flock(fichier, fcntl.LOCK_UN)
 
     # Fonction pour lire tous les clients depuis le fichier client.txt
     @staticmethod
@@ -182,6 +177,7 @@ class Transaction():
             "numero_compte": client_source.numero_compte if client_source else '',
             "numero_compte_destinataire": client_destinataire.numero_compte if client_destinataire.client_destinataire else ''
         }
+
 
 
 

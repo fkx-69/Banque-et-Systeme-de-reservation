@@ -13,8 +13,6 @@ def client_program():
         if message[-1] == "#":
             print(message.replace("#", ""))
             continue
-        
-
           
         print(message)
 
@@ -24,7 +22,6 @@ def client_program():
             choix = '.'
             
         client_socket.send(choix.encode("utf8"))
-        
 
         if choix == '0':
             print("Bye !")
