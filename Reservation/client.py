@@ -1,5 +1,6 @@
 import socket
 
+
 def client_program():
     # Connexion au serveur
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -7,13 +8,14 @@ def client_program():
 
     # Communication avec le serveur
     while True:
+
         # Réception du message
         message = client_socket.recv(1024).decode()
 
         if message[-1] == "#":
-            print(message.replace("#", ""))
+            print(message.strip()[:-1], end="\n")
             continue
-          
+        
         print(message)
 
         # Envoi du choix
