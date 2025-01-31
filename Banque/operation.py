@@ -63,12 +63,12 @@ class Sauvegarde:
     @staticmethod
     def ecrire_client(client: Client, montant: float = 0) -> None:
         """Cette fonction ajoute ou met à jour un client dans le fichier client.txt"""
-
+        
+        clients = Sauvegarde.lire_clients()
+        client_existe = False
         # Écriture des clients dans le fichier
         with open("client.txt", "w", encoding="UTF-8") as fichier:
             
-            clients = Sauvegarde.lire_clients()
-            client_existe = False
 
             # Mettre à jour le client si son numéro de compte existe déjà
             for i, client_dictionnaire in enumerate(clients):
@@ -90,9 +90,8 @@ class Sauvegarde:
             if not client_existe:
                 clients.append(client.to_dict())
 
-
             for client_ in clients:
-                fichier.write(f"{",".join([str(i) for i in client_.values()])}" + "\n")
+                fichier.write(f"{','.join([str(i) for i in client_.values()])}" + "\n")
 
 
     # Fonction pour lire tous les clients depuis le fichier client.txt
@@ -101,7 +100,7 @@ class Sauvegarde:
         """Cette fonction lit les clients depuis le fichier client.txt et les retourne sous forme de liste de dictionnaires"""
         clients = []
         if os.path.exists("client.txt"):
-            with open("client.txt", "r") as fichier:
+            with open("client.txt", "r", encoding="UTF-8") as fichier:
                 for ligne in fichier:
                     client = {
                         "numero_compte": int(ligne.strip().split(",")[0]),
@@ -114,6 +113,7 @@ class Sauvegarde:
                         "code_pin": int(ligne.strip().split(",")[7])
                     }
                     clients.append(client)
+                    print(clients)
         return clients
 
     # Fonction pour ajouter ou mettre à jour une transaction dans le fichier transaction.txt
@@ -122,7 +122,7 @@ class Sauvegarde:
         """Cette fonction ajoute une transaction dans le fichier transaction.txt"""
 
         with open("transaction.txt", "a", encoding="UTF-8") as fichier:
-            fichier.write(f"{','.join([str(i) for i in transaction().values()])}" + "\n")
+            fichier.write(f"{','.join([str(i) for i in transaction.values()])}" + "\n")
 
     # Fonction pour lire toutes les transactions depuis le fichier transaction.txt
     @staticmethod
@@ -175,7 +175,7 @@ class Transaction():
             "type_transaction": type_transaction,
             "montant": montant,
             "numero_compte": client_source.numero_compte if client_source else '',
-            "numero_compte_destinataire": client_destinataire.numero_compte if client_destinataire.client_destinataire else ''
+            "numero_compte_destinataire": client_destinataire.numero_compte if client_destinataire else ''
         }
 
 
@@ -199,6 +199,7 @@ def menu(client_socket):
     1. Créer un compte
     2. Faire une transaction
     3. Changer le code PIN
+    4. Fermer votre compte
     0. Quitter
     """
     client_socket.send(menu_text.encode())
@@ -219,6 +220,8 @@ def menu(client_socket):
     elif choix == "3":
         changer_code_pin(client_socket)
     elif choix == "4":
+        fermer_compte(client_socket)
+    elif choix == "0":
         client_socket.send("Merci d'avoir utilisé nos services\n".encode())
         return None
 
@@ -403,20 +406,35 @@ def creer_compte(client_socket):
             elif montant >= 5000:
                 client.solde = montant
                 client.type_compte = "epargne"
-                client_socket.send("Compte épargne créé avec succès.\n".encode())
+                client_socket.send("Dépot effectué avec succès.\n#".encode())
             elif montant == 0:
-                client_socket.send("Création de compte annulée.\n".encode())
+                client_socket.send("Création de compte annulée.\n#".encode())
                 return None
         else:
-            client_socket.send("Création de compte annulée.\n".encode())
+            client_socket.send("Création de compte annulée.\n#".encode())
             return None
 
-    # Demander les informations personnelles
-    client_socket.send("Entrez votre nom: ".encode())
-    client.nom = client_socket.recv(1024).decode().strip()
+    time.sleep(1)
 
-    client_socket.send("Entrez votre prénom: ".encode())
-    client.prenom = client_socket.recv(1024).decode().strip()
+
+    # Demander les informations personnelles
+    while True:
+        client_socket.send("Entrez votre nom: ".encode())
+        client.nom = client_socket.recv(1024).decode().strip()
+        if not client.nom.isalpha():
+            client_socket.send("Le nom doit contenir seulement deslettres. Réessayez: ".encode())
+            time.sleep(1)
+            continue
+        break
+    
+    while True:
+        client_socket.send("Entrez votre prénom: ".encode())
+        client.prenom = client_socket.recv(1024).decode().strip()
+        if not client.prenom.isalpha():
+            client_socket.send("Le prénom doit contenir seulement deslettres. Réessayez: ".encode())        
+            time.sleep(1)
+            continue
+        break
 
     client_socket.send("Entrez votre numéro de téléphone (8 chiffres espaces): ".encode())
     client.numero_telephone = "".join(client_socket.recv(1024).decode().strip().split())
@@ -475,14 +493,45 @@ def changer_code_pin(client_socket):
         client.code_pin = nouveau_code_pin
         Sauvegarde.ecrire_client(client)
         client_socket.send("Code PIN modifié avec succès.\n".encode())
+        time.sleep(0.1)
+        menu(client_socket)
+        
     except Exception as e:
         client_socket.send(f"Une erreur est survenue : {e}\n".encode())
 
 
 
+def fermer_compte(client_socket):
+    try:
+        numero_compte = demander_numero_compte(client_socket)
+        client = numero_compte_to_client(numero_compte)
+        if not client:
+            client_socket.send("Ce numéro de compte n'existe pas.\n".encode())
+            menu(client_socket)
 
+        # Demander le code PIN
+        code_pin = int(demander_code_pin(client_socket))
+        print(client.to_dict())
+        # Fermer le compte
+        if code_pin == client.code_pin:
+            if client.type_compte == "courant" and client.solde > 0:
+               
+                client_socket.send("Le compte doit avoir un solde de 0 pour pouvoir le fermer.\n".encode())
+                time.sleep(0.1)
+                menu(client_socket)
 
+            client.status = "fermé"
+            Sauvegarde.ecrire_client(client)
+            client_socket.send("Compte fermé avec succès.\n".encode())
+            time.sleep(0.1)
+            menu(client_socket)
+        else:
+            client_socket.send("Code PIN incorrect. Compte non fermé.\n".encode())
+            time.sleep(0.1)
+            menu(client_socket)
 
+    except Exception as e:
+        client_socket.send(f"Une erreur est survenue : {e}\n".encode())
 
 if __name__ == "__main__":
     """client1 = Serveur.Client("Doe", "John", "123456789", "courant", "actif", 1000, 1234)

@@ -3,8 +3,8 @@ import socket
 import reservation_operation
 
 socket =  socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-HOST = ''
-PORT = 1234
+HOST = '192.168.1.100'
+PORT = 11223
 
 socket.bind((HOST, PORT))
 

@@ -258,7 +258,7 @@ def interface_authentifier(client_socket):
         client_socket.sendall("Numéro de téléphone invalide. Réessayez ou tapez (1) pour revenire au menu principal: ".encode())
         numero_telephone = client_socket.recv(1024).decode()
         if numero_telephone == "1":
-            menu()
+            menu(client_socket)
         
 
 
