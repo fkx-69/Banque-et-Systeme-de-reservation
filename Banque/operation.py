@@ -47,10 +47,6 @@ class Client:
         self.solde = ligne["solde"]
         self.code_pin = ligne["code_pin"]
 
-    def fermerture_compte(self):
-        self.statut = "ferme"
-        Sauvegarde.ecrire_client(self)
-        print(f"Votre compte de numéro {self.numero_compte} a été fermé")
 
 
 #-----------------------------------------------------------------------------------------------------
@@ -83,7 +79,6 @@ class Sauvegarde:
                         else:
                             clients[i]["solde"] += montant
 
-                        print(client_dictionnaire["statut"] != client.statut)
 
                         if client_dictionnaire["code_pin"] != client.code_pin:
                             clients[i]["code_pin"] = client.code_pin
@@ -100,6 +95,7 @@ class Sauvegarde:
 
                 for client_ in clients:
                     fichier.write(f"{','.join([str(i) for i in client_.values()])}" + "\n")
+                return True
 
 
     # Fonction pour lire tous les clients depuis le fichier client.txt
@@ -121,7 +117,6 @@ class Sauvegarde:
                         "code_pin": int(ligne.strip().split(",")[7])
                     }
                     clients.append(client)
-                    print(clients)
         return clients
 
     # Fonction pour ajouter ou mettre à jour une transaction dans le fichier transaction.txt
@@ -162,7 +157,7 @@ class Transaction():
         de faire le retrait, au cas ou le client resoit un dépôt pendant qu'il est connecté. """
         montant = -1*montant
         if not Sauvegarde.ecrire_client(client,montant):
-            print("Solde insuffisant") ## a changer pour un message d'erreur au client
+            return("Solde insuffisant") ## a changer pour un message d'erreur au client
         Sauvegarde.ecrire_transaction(Transaction.to_dict("retrait", montant, client))
     
     def depot(client, montant):
@@ -171,8 +166,8 @@ class Transaction():
        
 
     def virement(client, client_destinataire, montant):
-        retrait(client, montant)
-        depot(client_destinataire, montant)
+        Transaction.retrait(client, montant)
+        Transaction.depot(client_destinataire, montant)
         Sauvegarde.ecrire_transaction(Transaction.to_dict("virement", montant, client, client_destinataire))
 
 
@@ -314,17 +309,13 @@ def faire_retrait(client_socket):
         numero_compte = demander_numero_compte(client_socket)
         client = numero_compte_to_client(numero_compte)
         # Demander le code PIN
-        code_pin = demander_code_pin(client_socket)
+        code_pin = int(demander_code_pin(client_socket))
 
-        if not client:
-            client_socket.send("Ce numéro de compte n'existe pas.\n".encode())
-            return None
+        if not client or client.code_pin != code_pin:
+            client_socket.send("Numero de compte ou code PIN incorrect\n#".encode())
+            time.sleep(3)
+            menu_transaction(client_socket)
 
-        # Vérifier le code PIN et le numéro de compte
-        while (code_pin != client.code_pin) or not client:
-            numero_compte = demander_numero_compte(client_socket)
-            client = numero_compte_to_client(numero_compte)
-            code_pin = demander_code_pin(client_socket)
 
         # Demander le montant à retirer
         montant = demander_montant(client_socket)
@@ -339,11 +330,14 @@ def faire_retrait(client_socket):
 
 def faire_virement(client_socket):
     try:
-        numero_compte = demander_numero_compte()
+        numero_compte = demander_numero_compte(client_socket)
         client = numero_compte_to_client(numero_compte)
+        code_pin = int(demander_code_pin(client_socket))
 
-        if not client:
-            client_socket.send("Ce numéro de compte n'existe pas.\n".encode())
+
+        # Vérifier le code PIN
+        if client.code_pin != code_pin or not client:
+            client_socket.send("Code PIN incorrect.\n".encode())
             menu_transaction(client_socket)
 
         numero_compte_destinataire = demander_numero_compte(client_socket, is_destinataire=True)
@@ -353,13 +347,7 @@ def faire_virement(client_socket):
             client_socket.send("Le numéro de compte du destinataire n'existe pas.\n".encode())
             menu_transaction(client_socket)
         
-        code_pin = demander_code_pin()
-        # Vérifier le code PIN
-        while (code_pin != client.code_pin) or not client:
-            numero_compte = demander_numero_compte(client_socket)
-            client = numero_compte_to_client(numero_compte)
-            code_pin = demander_code_pin(client_socket)
-
+    
         # Demander le montant à transférer
         montant = demander_montant(client_socket)
         Transaction.virement(client, client_destinataire, montant)
