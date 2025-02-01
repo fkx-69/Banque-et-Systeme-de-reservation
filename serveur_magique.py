@@ -6,19 +6,14 @@ import time
 
 
 socket =  socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-HOST = ''
+HOST = '192.168.0.102'
 PORT = 1234
 
 socket.bind((HOST, PORT))
 
 print("Waiting for connection")
 
-while True:
-
-
-    socket.listen()
-    conn, addr = socket.accept()
-
+def menu_magique(client_socket):
     conn.sendall("""Bienvenue sur le Serveur Magique !
     Voulez vous allez vers la:
     1. Banque
@@ -32,9 +27,17 @@ while True:
         choix_serveur = conn.recv(1024).decode()
     
     if choix_serveur == "1":
-        thread = threading.Thread(target=operation.menu, args=(conn,))
+        operation.menu(client_socket)
     elif choix_serveur == "2":
-        thread = threading.Thread(target=reservation_operation.menu, args=(conn,))
+        reservation_operation.menu(client_socket)
+
+while True:
+
+
+    socket.listen()
+    conn, addr = socket.accept()
+
+    thread = threading.Thread(target=menu_magique, args=(conn,))
         
     thread.start()
     

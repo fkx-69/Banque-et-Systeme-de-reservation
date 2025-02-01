@@ -4,9 +4,11 @@ import socket
 from datetime import datetime
 from hashlib import sha256
 import os
+import verrou_global
+
+lock = verrou_global.verrou_global_reservation
 
 class SalleReservation:
-    lock = threading.Lock()
     salle_list = ["A", "B", "C"]
     
     def __init__(self):
@@ -17,13 +19,14 @@ class SalleReservation:
     def charger_sauvegarde(self)-> None:
         """Charge les réservations depuis un fichier de sauvegarde."""
         if os.path.exists("historique_reservations.txt"):
-            with open("historique_reservations.txt", "r") as fichier:
-                for ligne in fichier:
-                    nom_salle, debut, fin, numero_telephone, date_reservation = ligne.strip().split(",")
-                    debut = datetime.strptime(debut, "%Y-%m-%d %H:%M:%S")
-                    fin = datetime.strptime(fin, "%Y-%m-%d %H:%M:%S")
-                    date_reservation = datetime.strptime(date_reservation, "%Y-%m-%d %H:%M:%S")
-                    self.reservations[nom_salle].append((debut, fin, numero_telephone, date_reservation))
+            with lock:
+                with open("historique_reservations.txt", "r") as fichier:
+                    for ligne in fichier:
+                        nom_salle, debut, fin, numero_telephone, date_reservation = ligne.strip().split(",")
+                        debut = datetime.strptime(debut, "%Y-%m-%d %H:%M:%S")
+                        fin = datetime.strptime(fin, "%Y-%m-%d %H:%M:%S")
+                        date_reservation = datetime.strptime(date_reservation, "%Y-%m-%d %H:%M:%S")
+                        self.reservations[nom_salle].append((debut, fin, numero_telephone, date_reservation))
 
         else:
             with open("historique_reservations.txt", 'w') as file:
@@ -47,7 +50,7 @@ class SalleReservation:
 
     def reserver_salle(self, nom_salle, debut, fin, numero_telephone) -> bool:
         """Réserve une salle si elle est disponible pour la plage horaire spécifiée."""
-        with SalleReservation.lock:
+        with lock:
             if self.verifier_disponibilite(nom_salle, debut, fin):
                 if nom_salle not in self.reservations.keys():
                     return False, f"La salle  {nom_salle} n'exist pas."
@@ -378,46 +381,49 @@ def annuler_reservation(client_socket):
 def afficher_reservations(client_socket):
     """Affiche la table des réservations pour une salle à partir de maintenant."""
 
-    salle_reservation = SalleReservation()
-    reservations = salle_reservation.reservations
-    professeurs = GestionUtilisateurs()
-    professeurs = professeurs.utilisateurs
 
 
-    with SalleReservation.lock:
 
-
-        client_socket.sendall("Entrez le nom de la salle à afficher parmis les suivantes: A,B,C (ou (1) pour revenir au menu principal): ".encode())
-        nom_salle = client_socket.recv(1024).decode()
-        if nom_salle == "1":
-            menu(client_socket)
+    client_socket.sendall("Entrez le nom de la salle à afficher parmis les suivantes: A,B,C (ou (1) pour revenir au menu principal): ".encode())
+    nom_salle = client_socket.recv(1024).decode()
+    if nom_salle == "1":
+        menu(client_socket)
+    
+    if nom_salle not in SalleReservation.salle_list:
+        client_socket.sendall("Nom de salle invalide.#".encode())
+        time.sleep(0.5)
+        menu(client_socket)
         
-        if nom_salle not in SalleReservation.salle_list:
-            client_socket.sendall("Nom de salle invalide.#".encode())
-            time.sleep(0.5)
-            menu(client_socket)
-        
-        maintenant = datetime.now()
-        reservations_futures = [
-            (debut, fin, f"{professeurs[numero_telephone]['nom']} {professeurs[numero_telephone]['prenom']}", date_reservation)
-            for debut, fin, numero_telephone, date_reservation in reservations[nom_salle]
-            if fin > maintenant
-        ]
+    with lock:
 
-        if not reservations_futures:
-            print(f"Aucune réservation future pour la salle {nom_salle}.")
-            return
-        
-        reservations_futures = sorted(reservations_futures,key=lambda x: x[1])
+        salle_reservation = SalleReservation()
+        reservations = salle_reservation.reservations
+        professeurs = GestionUtilisateurs()
+        professeurs = professeurs.utilisateurs
 
-        separateur = "-"*60
-        
-        client_socket.sendall(f"""Table des réservations pour la salle {nom_salle} (à partir de {maintenant}):\n
+    
+    maintenant = datetime.now()
+    reservations_futures = [
+        (debut, fin, f"{professeurs[numero_telephone]['nom']} {professeurs[numero_telephone]['prenom']}", date_reservation)
+        for debut, fin, numero_telephone, date_reservation in reservations[nom_salle]
+        if fin > maintenant
+    ]
+
+    if not reservations_futures:
+        client_socket.sendall(f"Aucune réservation future pour la salle {nom_salle}.".encode())
+        return
+    
+    reservations_futures = sorted(reservations_futures,key=lambda x: x[1])
+
+    separateur = "-"*60
+    
+    client_socket.sendall(f"""Table des réservations pour la salle {nom_salle} (à partir de {maintenant}):\n
 {separateur}
 {'Début':<20} {'Fin':<20} {'Professeur':<20}
 {separateur}#""".encode())
-        for debut, fin, professeur, dateç_reservation in reservations_futures:
-            client_socket.sendall(f"{debut.strftime('%Y-%m-%d %H:%M'):<20} {fin.strftime('%Y-%m-%d %H:%M'):<20} {professeur:<20}\n".encode())
+    
+    for debut, fin, professeur, dateç_reservation in reservations_futures:
+        client_socket.sendall(f"{debut.strftime('%Y-%m-%d %H:%M'):<20} {fin.strftime('%Y-%m-%d %H:%M'):<20} {professeur:<20}\n".encode())
 
     client_socket.sendall(separateur[:-1].encode())
     time.sleep(1)

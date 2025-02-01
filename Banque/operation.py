@@ -3,6 +3,9 @@ import socket
 import os
 import time
 import random
+import verrou_global
+
+lock = verrou_global.verrou_global_banque
 
 #### rappel: ajouter une fonction pour verifier le status des compte avant opération
 
@@ -55,16 +58,14 @@ class Client:
 
 class Sauvegarde: 
 
-    lock = threading.Lock()
-
     # Fonction pour ajouter ou mettre à jour un client dans le fichier client.txt
     @staticmethod
     def ecrire_client(client: Client, montant: float = 0) -> None:
         """Cette fonction ajoute ou met à jour un client dans le fichier client.txt"""
-        with Sauvegarde.lock:
             
-            clients = Sauvegarde.lire_clients()
-            client_existe = False
+        clients = Sauvegarde.lire_clients()
+        client_existe = False
+        with lock:
             # Écriture des clients dans le fichier
             with open("client.txt", "w", encoding="UTF-8") as fichier:
                 
@@ -104,44 +105,30 @@ class Sauvegarde:
         """Cette fonction lit les clients depuis le fichier client.txt et les retourne sous forme de liste de dictionnaires"""
         clients = []
         if os.path.exists("client.txt"):
-            with open("client.txt", "r", encoding="UTF-8") as fichier:
-                for ligne in fichier:
-                    client = {
-                        "numero_compte": int(ligne.strip().split(",")[0]),
-                        "nom":  ligne.strip().split(",")[1],
-                        "prenom": ligne.strip().split(",")[2],
-                        "numero_telephone": ligne.strip().split(",")[3],
-                        "type_compte": ligne.strip().split(",")[4],
-                        "statut": ligne.strip().split(",")[5],
-                        "solde": float(ligne.strip().split(",")[6]),
-                        "code_pin": int(ligne.strip().split(",")[7])
-                    }
-                    clients.append(client)
+            with lock:
+                with open("client.txt", "r", encoding="UTF-8") as fichier:
+                    for ligne in fichier:
+                        client = {
+                            "numero_compte": int(ligne.strip().split(",")[0]),
+                            "nom":  ligne.strip().split(",")[1],
+                            "prenom": ligne.strip().split(",")[2],
+                            "numero_telephone": ligne.strip().split(",")[3],
+                            "type_compte": ligne.strip().split(",")[4],
+                            "statut": ligne.strip().split(",")[5],
+                            "solde": float(ligne.strip().split(",")[6]),
+                            "code_pin": int(ligne.strip().split(",")[7])
+                        }
+                        clients.append(client)
         return clients
 
     # Fonction pour ajouter ou mettre à jour une transaction dans le fichier transaction.txt
     @staticmethod
     def ecrire_transaction(transaction):
         """Cette fonction ajoute une transaction dans le fichier transaction.txt"""
+        with lock:
 
-        with open("transaction.txt", "a", encoding="UTF-8") as fichier:
-            fichier.write(f"{','.join([str(i) for i in transaction.values()])}" + "\n")
-
-    # Fonction pour lire toutes les transactions depuis le fichier transaction.txt
-    @staticmethod
-    def lire_transactions():
-        transactions = []
-        if os.path.exists("transaction.txt"):
-            with open("transaction.txt", "r") as fichier:
-                for ligne in fichier:
-                    transaction = {
-                        "numero_compte": int(ligne.strip().split(",")[0]),
-                        "montant": float(ligne.strip().split(",")[1]),
-                        "type_transaction": ligne.strip().split(",")[2],
-                        "numero_compte_destinataire": int(ligne.strip().split(",")[3]) if ligne.strip().split(",")[3] else None
-                    }
-                    transactions.append(transaction)
-        return transactions
+            with open("transaction.txt", "a", encoding="UTF-8") as fichier:
+                fichier.write(f"{','.join([str(i) for i in transaction.values()])}" + "\n")
 
 
 
@@ -421,7 +408,7 @@ def creer_compte(client_socket):
         client_socket.send("Entrez votre nom: ".encode())
         client.nom = client_socket.recv(1024).decode().strip()
         if not client.nom.isalpha():
-            client_socket.send("Le nom doit contenir seulement deslettres. Réessayez: ".encode())
+            client_socket.send("Le nom doit contenir seulement des lettres.#".encode())
             time.sleep(1)
             continue
         break
@@ -430,7 +417,7 @@ def creer_compte(client_socket):
         client_socket.send("Entrez votre prénom: ".encode())
         client.prenom = client_socket.recv(1024).decode().strip()
         if not client.prenom.isalpha():
-            client_socket.send("Le prénom doit contenir seulement deslettres. Réessayez: ".encode())        
+            client_socket.send("Le prénom doit contenir seulement deslettres.#".encode())        
             time.sleep(1)
             continue
         break
@@ -449,9 +436,34 @@ def creer_compte(client_socket):
         client_socket.send("Le code PIN doit être composé de 4 chiffres. Réessayez: ".encode())
         client.code_pin = client_socket.recv(1024).decode().strip()
 
+    clients = Sauvegarde.lire_clients()
+    client_ = None
+    for c in clients:
+        if c["numero_telephone"] == client.numero_telephone:
+            client_ = Client()
+            client_.from_dict(c)
+            client_
+
+    if client_:
+        client_socket.send("Ce numéro de téléphone est deja utilisé.#".encode())
+        time.sleep(1)
+        menu(client_socket)
+
     # Sauvegarde des données du client
     Sauvegarde.ecrire_client(client)
     client_socket.send("Compte créé avec succès !\n".encode())
+    informations = f"""
+    Compte créé avec succès !
+    -------------------------
+    Numéro de compte : {client.numero_compte}
+    Nom              : {client.nom}
+    Prénom           : {client.prenom}
+    Téléphone        : {client.numero_telephone}
+    Type de compte   : {client.type_compte}
+    Solde initial    : {client.solde} FCFA
+    #
+    """
+    client_socket.send(informations.encode())
     time.sleep(3)
     menu(client_socket)
     
